@@ -1,0 +1,2 @@
+# TODO
+- [ ] register auto reconnect

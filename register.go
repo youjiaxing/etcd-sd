@@ -21,7 +21,7 @@ func NewRegister(endPoints []string) (*Register, error) {
 	return &Register{
 		ctx:         context.Background(),
 		client:      client,
-		storage:     make([]serviceItem, 0),
+		storage:     make([]registerItem, 0),
 		grantId:     0,
 		doneCh:      make(chan struct{}),
 		grantCancel: nil,
@@ -31,18 +31,22 @@ func NewRegister(endPoints []string) (*Register, error) {
 type Register struct {
 	ctx         context.Context
 	client      *clientv3.Client
-	storage     []serviceItem
+	storage     []registerItem
 	grantId     clientv3.LeaseID
 	doneCh      chan struct{}
 	grantCancel func()
 }
 
-type serviceItem struct {
-	SvcName string `json:"svc_name"`
-	Addr    string `json:"addr"`
+type registerItem struct {
+	SvcName string
+	ServiceItem
 }
 
-func (s serviceItem) String() string {
+type ServiceItem struct {
+	Addr string `json:"addr"`
+}
+
+func (s ServiceItem) String() string {
 	bytes, _ := json.Marshal(s)
 	return string(bytes)
 }
@@ -79,11 +83,12 @@ func (r *Register) checkGrant() error {
 }
 
 func (r *Register) Reg(svcName string, addr string) {
-	item := serviceItem{
+	r.storage = append(r.storage, registerItem{
 		SvcName: svcName,
-		Addr:    addr,
-	}
-	r.storage = append(r.storage, item)
+		ServiceItem: ServiceItem{
+			Addr: addr,
+		},
+	})
 }
 
 func (r *Register) Start() error {
