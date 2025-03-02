@@ -1,9 +1,9 @@
-package sd_test
+package etcdsd_test
 
 import (
 	"context"
 	"fmt"
-	"github.com/youjiaxing/sd"
+	sd "github.com/youjiaxing/etcd-sd"
 	"go.etcd.io/etcd/client/v3"
 	"runtime/debug"
 	"strings"
