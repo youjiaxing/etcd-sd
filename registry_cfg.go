@@ -15,13 +15,16 @@ type RegistryCfg struct {
 
 func (c *RegistryCfg) WithRetryTimeout(timeout time.Duration) *RegistryCfg {
 	if timeout <= 0 {
-		c.retryTimeout = time.Second * 5
+		return c
 	}
 	c.retryTimeout = timeout
 	return c
 }
 
 func (c *RegistryCfg) WithTTL(ttl int64) *RegistryCfg {
+	if ttl <= 0 {
+		return c
+	}
 	c.ttl = ttl
 	return c
 }

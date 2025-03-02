@@ -124,7 +124,7 @@ func (r *Registry) Reg(ctx context.Context, svc Service) error {
 		leaseId:   leaseId,
 		kaChan:    kaChan,
 	})
-	go r.healthCheck(ctx, svc.Key())
+	go r.keepAliveLease(ctx, svc.Key())
 	return nil
 }
 
@@ -141,13 +141,7 @@ func (r *Registry) getRegSvc(svcKey string) (*regService, bool) {
 	return regSvc, ok
 }
 
-func (r *Registry) delRegSvc(svcKey string) {
-	r.regMutex.Lock()
-	defer r.regMutex.Unlock()
-	delete(r.regService, svcKey)
-}
-
-func (r *Registry) healthCheck(ctx context.Context, svcKey string) {
+func (r *Registry) keepAliveLease(ctx context.Context, svcKey string) {
 	regSvc, ok := r.getRegSvc(svcKey)
 	if !ok {
 		return
@@ -166,7 +160,7 @@ func (r *Registry) healthCheck(ctx context.Context, svcKey string) {
 			if ok {
 				continue
 			}
-			log.Printf("healthCheck error: %s kaChan close\n", svcKey)
+			log.Printf("keepAliveLease error: %s kaChan close\n", svcKey)
 
 			if ctx.Err() != nil {
 				return
@@ -179,7 +173,7 @@ func (r *Registry) healthCheck(ctx context.Context, svcKey string) {
 			// 重新创建
 			leaseId, kaChan, err := r.putWithNewLease(ctx, regSvc.svc)
 			if err != nil {
-				log.Printf("healthCheck recreate error: %s %s\n", svcKey, err.Error())
+				log.Printf("keepAliveLease recreate error: %s %s\n", svcKey, err.Error())
 				continue
 			}
 			regSvc.kaChan = kaChan
@@ -208,7 +202,7 @@ func (r *Registry) putWithNewLease(ctx context.Context, svc Service) (leaseId cl
 		}
 	}()
 
-	key := r.svcKey(r.cfg.namespace, svc.Name, svc.Id)
+	key := r.SvcKey(r.cfg.namespace, svc.Name, svc.Id)
 	value := svc.Marshal()
 	_, err = r.client.KV.Put(ctx, key, value, clientv3.WithLease(leaseResp.ID))
 	if err != nil {
@@ -218,7 +212,7 @@ func (r *Registry) putWithNewLease(ctx context.Context, svc Service) (leaseId cl
 	return leaseId, kaChan, nil
 }
 
-func (r *Registry) svcKey(namespace string, svcName string, svcId string) string {
+func (r *Registry) SvcKey(namespace string, svcName string, svcId string) string {
 	return fmt.Sprintf("%s%s/%s", namespace, svcName, svcId)
 }
 

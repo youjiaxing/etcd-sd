@@ -2,6 +2,7 @@ package sd_test
 
 import (
 	"context"
+	"fmt"
 	"github.com/youjiaxing/sd"
 	"go.etcd.io/etcd/client/v3"
 	"runtime/debug"
@@ -104,71 +105,76 @@ func validateEtcdCount(t *testing.T, cli *clientv3.Client, prefixKey string, exp
 	return resp, err
 }
 
-// func TestLeaseRenewal(t *testing.T) {
-// 	registry, cli := setupRegistry(t)
-// 	ctx := context.Background()
-//
-// 	// 注册测试服务
-// 	svc := sd.Service{
-// 		Name: "inventory",
-// 		Id:   "node-1",
-// 		Addr: []string{"10.0.1.10:8080"},
-// 	}
-// 	if err := registry.Reg(ctx, svc); err != nil {
-// 		t.Fatalf("注册失败: %v", err)
-// 	}
-//
-// 	// 获取初始租约信息
-// 	initialResp, err := cli.Get(ctx, registry.(*sd.Registry).svcKey("/test/services/", "inventory", "node-1"))
-// 	if err != nil || len(initialResp.Kvs) == 0 {
-// 		t.Fatal("服务未正确注册")
-// 	}
-//
-// 	// 等待超过TTL时间（5秒）后验证续期
-// 	time.Sleep(6 * time.Second)
-//
-// 	// 检查服务仍然存在
-// 	resp, err := cli.Get(ctx, registry.(*sd.Registry).svcKey("/test/services/", "inventory", "node-1"))
-// 	if err != nil || len(resp.Kvs) == 0 {
-// 		t.Error("租约未正确续期")
-// 	}
-//
-// 	// 停止健康检查（模拟服务崩溃）
-// 	registry.(*sd.Registry).delRegSvc(svc.Key())
-//
-// 	// 等待TTL过期后验证自动删除
-// 	time.Sleep(6 * time.Second)
-// 	resp, _ = cli.Get(ctx, registry.(*sd.Registry).svcKey("/test/services/", "inventory", "node-1"))
-// 	if len(resp.Kvs) > 0 {
-// 		t.Error("服务未自动过期")
-// 	}
-// }
-//
-// // 并发压力测试
-// func TestConcurrentRegistration(t *testing.T) {
-// 	registry, cli := setupRegistry(t)
-// 	ctx := context.Background()
-//
-// 	var wg sync.WaitGroup
-// 	for i := 0; i < 50; i++ {
-// 		wg.Add(1)
-// 		go func(id int) {
-// 			defer wg.Done()
-// 			svc := sd.Service{
-// 				Name: "search",
-// 				Id:   fmt.Sprintf("worker-%d", id),
-// 				Addr: []string{fmt.Sprintf("10.0.2.%d:8080", id)},
-// 			}
-// 			if err := registry.Reg(ctx, svc); err != nil {
-// 				t.Errorf("注册失败: worker-%d: %v", id, err)
-// 			}
-// 		}(i)
-// 	}
-// 	wg.Wait()
-//
-// 	// 验证注册数量
-// 	resp, err := cli.Get(ctx, "/test/services/search/", clientv3.WithPrefix())
-// 	if err != nil || len(resp.Kvs) != 50 {
-// 		t.Errorf("并发注册异常，预期50实例，实际 %d", len(resp.Kvs))
-// 	}
-// }
+func TestLeaseRenewal(t *testing.T) {
+	namespace := "/TestLease/"
+	registry, cli := setupRegistry(t, sd.NewRegistryCfg().WithNamespace("/TestLease").WithTTL(3))
+	ctx := context.Background()
+
+	// 注册测试服务
+	svc := sd.Service{
+		Name: "inventory",
+		Id:   "node-1",
+		Addr: []string{"10.0.1.10:8080"},
+	}
+	if err := registry.Reg(ctx, svc); err != nil {
+		t.Fatalf("注册失败: %v", err)
+	}
+	svcKey := registry.SvcKey(namespace, "inventory", "node-1")
+
+	// 获取初始租约信息
+	initialResp, err := cli.Get(ctx, svcKey)
+	if err != nil || len(initialResp.Kvs) == 0 {
+		t.Fatal("服务未正确注册")
+	}
+
+	// 等待超过TTL时间（3秒）后验证续期
+	time.Sleep(5 * time.Second)
+
+	// 检查服务仍然存在
+	resp, err := cli.Get(ctx, svcKey)
+	if err != nil || len(resp.Kvs) == 0 {
+		t.Error("租约未正确续期")
+	}
+
+	// 停止注册
+	registry.Stop()
+
+	// 等待TTL过期后验证自动删除
+	time.Sleep(time.Second)
+	resp, _ = cli.Get(ctx, svcKey)
+	if len(resp.Kvs) > 0 {
+		t.Error("服务未自动过期")
+	}
+}
+
+// 并发压力测试
+func TestConcurrentRegistration(t *testing.T) {
+	registry, cli := setupRegistry(t, sd.NewRegistryCfg().WithNamespace("/test/services/"))
+	ctx := context.Background()
+	const N = 500
+
+	var wg sync.WaitGroup
+	wg.Add(N)
+	for i := 0; i < N; i++ {
+		go func(id int) {
+			defer wg.Done()
+			svc := sd.Service{
+				Name: "search",
+				Id:   fmt.Sprintf("worker-%d", id),
+				Addr: []string{fmt.Sprintf("10.0.2.%d:8080", id)},
+			}
+			if err := registry.Reg(ctx, svc); err != nil {
+				t.Errorf("注册失败: worker-%d: %v", id, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	// 验证注册数量
+	resp, err := cli.Get(ctx, "/test/services/search/", clientv3.WithPrefix())
+	if err != nil || len(resp.Kvs) != N {
+		t.Errorf("并发注册异常，预期50实例，实际 %d", len(resp.Kvs))
+	}
+
+	registry.Stop()
+}
