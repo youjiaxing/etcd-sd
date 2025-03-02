@@ -1,2 +1,2 @@
-# TODO
-- [ ] register auto reconnect
+# 简介
+这是一个基于 etcd 的服务注册发现

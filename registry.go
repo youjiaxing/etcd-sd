@@ -10,9 +10,10 @@ import (
 	"time"
 )
 
+// IRegistry 服务注册
 type IRegistry interface {
-	Reg(ctx context.Context, svc Service) error
-	UnReg(ctx context.Context, name, id string) error
+	Reg(svc Service) error
+	UnReg(name, id string) error
 	Stop()
 }
 
@@ -33,11 +34,7 @@ func (s *Service) Valid() bool {
 }
 
 func (s *Service) Key() string {
-	return SvcKey(s.Name, s.Id)
-}
-
-func SvcKey(name, id string) string {
-	return fmt.Sprintf("%s-%s", name, id)
+	return RegSvcKey(s.Name, s.Id)
 }
 
 func (s *Service) Marshal() string {
@@ -86,10 +83,10 @@ type Registry struct {
 	regService map[string]*regService // key: Service.Key()
 }
 
-func (r *Registry) UnReg(_ context.Context, name, id string) error {
+func (r *Registry) UnReg(name, id string) error {
 	r.regMutex.Lock()
 	defer r.regMutex.Unlock()
-	svcKey := SvcKey(name, id)
+	svcKey := RegSvcKey(name, id)
 	regSvc, has := r.regService[svcKey]
 	if !has {
 		return fmt.Errorf("service %s not found", name)
@@ -99,7 +96,7 @@ func (r *Registry) UnReg(_ context.Context, name, id string) error {
 	return nil
 }
 
-func (r *Registry) Reg(ctx context.Context, svc Service) error {
+func (r *Registry) Reg(svc Service) error {
 	if !svc.Valid() {
 		return fmt.Errorf("invalid service")
 	}
@@ -109,7 +106,7 @@ func (r *Registry) Reg(ctx context.Context, svc Service) error {
 		return fmt.Errorf("duplicate service %s", svc.Key())
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(r.ctx)
 	leaseId, kaChan, err := r.putWithNewLease(ctx, svc)
 	if err != nil {
 		cancel()
@@ -202,7 +199,7 @@ func (r *Registry) putWithNewLease(ctx context.Context, svc Service) (leaseId cl
 		}
 	}()
 
-	key := r.SvcKey(r.cfg.namespace, svc.Name, svc.Id)
+	key := r.cfg.ServiceInstEtcdKey(svc.Name, svc.Id)
 	value := svc.Marshal()
 	_, err = r.client.KV.Put(ctx, key, value, clientv3.WithLease(leaseResp.ID))
 	if err != nil {
@@ -212,17 +209,10 @@ func (r *Registry) putWithNewLease(ctx context.Context, svc Service) (leaseId cl
 	return leaseId, kaChan, nil
 }
 
-func (r *Registry) SvcKey(namespace string, svcName string, svcId string) string {
-	return fmt.Sprintf("%s%s/%s", namespace, svcName, svcId)
-}
-
 func (r *Registry) Stop() {
-	r.regMutex.Lock()
-	for _, regSvc := range r.regService {
-		regSvc.ctxCancel()
-	}
-	r.regService = make(map[string]*regService)
 	r.ctxCancel()
+	r.regMutex.Lock()
+	r.regService = make(map[string]*regService)
 	r.regMutex.Unlock()
 
 	r.stopWg.Wait()

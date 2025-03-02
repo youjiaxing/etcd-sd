@@ -5,15 +5,14 @@ import (
 	"time"
 )
 
-type RegistryCfg struct {
+type DiscoverCfg struct {
 	protect bool
 
 	namespace    string        // 命名空间, 以 / 开头和结尾
-	ttl          int64         // lease ttl
 	retryTimeout time.Duration // 重试超时时间
 }
 
-func (c *RegistryCfg) WithRetryTimeout(timeout time.Duration) *RegistryCfg {
+func (c *DiscoverCfg) WithRetryTimeout(timeout time.Duration) *DiscoverCfg {
 	if timeout <= 0 {
 		return c
 	}
@@ -21,15 +20,7 @@ func (c *RegistryCfg) WithRetryTimeout(timeout time.Duration) *RegistryCfg {
 	return c
 }
 
-func (c *RegistryCfg) WithTTL(ttl int64) *RegistryCfg {
-	if ttl <= 0 {
-		return c
-	}
-	c.ttl = ttl
-	return c
-}
-
-func (c *RegistryCfg) WithNamespace(namespace string) *RegistryCfg {
+func (c *DiscoverCfg) WithNamespace(namespace string) *DiscoverCfg {
 	namespace = strings.ReplaceAll(namespace, "//", "/")
 	if !strings.HasPrefix(namespace, "/") {
 		namespace = "/" + namespace
@@ -41,19 +32,18 @@ func (c *RegistryCfg) WithNamespace(namespace string) *RegistryCfg {
 	return c
 }
 
-func (c *RegistryCfg) ServiceInstEtcdPrefixKey(svcName string) string {
+func (c *DiscoverCfg) ServiceInstEtcdPrefixKey(svcName string) string {
 	return ServiceInstEtcdPrefixKey(c.namespace, svcName)
 }
 
-func (c *RegistryCfg) ServiceInstEtcdKey(svcName string, svcId string) string {
+func (c *DiscoverCfg) ServiceInstEtcdKey(svcName string, svcId string) string {
 	return ServiceInstEtcdKey(c.namespace, svcName, svcId)
 }
 
-func NewRegistryCfg() *RegistryCfg {
-	return &RegistryCfg{
+func NewDiscoverCfg() *DiscoverCfg {
+	return &DiscoverCfg{
 		protect:      true,
 		namespace:    DefaultNameSpace,
-		ttl:          5,
 		retryTimeout: time.Second * 5,
 	}
 }

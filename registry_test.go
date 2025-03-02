@@ -40,7 +40,6 @@ func setupRegistry(t *testing.T, cfg *sd.RegistryCfg) (*sd.Registry, *clientv3.C
 func TestMultipleInstances(t *testing.T) {
 	ttl := int64(5)
 	registry, cli := setupRegistry(t, sd.NewRegistryCfg().WithTTL(ttl))
-	ctx := context.Background()
 
 	// 准备3个服务实例
 	services := []sd.Service{
@@ -55,7 +54,7 @@ func TestMultipleInstances(t *testing.T) {
 		wg.Add(1)
 		go func(s sd.Service) {
 			defer wg.Done()
-			if err := registry.Reg(ctx, s); err != nil {
+			if err := registry.Reg(s); err != nil {
 				t.Errorf("注册服务 %s 失败: %v", s.Id, err)
 			}
 		}(svc)
@@ -70,7 +69,7 @@ func TestMultipleInstances(t *testing.T) {
 	time.Sleep(time.Second * 2)
 	delSvc := services[0]
 	services = services[1:]
-	if err := registry.UnReg(ctx, delSvc.Name, delSvc.Id); err != nil {
+	if err := registry.UnReg(delSvc.Name, delSvc.Id); err != nil {
 		t.Errorf("注销失败: %v", err)
 	}
 
@@ -106,8 +105,8 @@ func validateEtcdCount(t *testing.T, cli *clientv3.Client, prefixKey string, exp
 }
 
 func TestLeaseRenewal(t *testing.T) {
-	namespace := "/TestLease/"
-	registry, cli := setupRegistry(t, sd.NewRegistryCfg().WithNamespace("/TestLease").WithTTL(3))
+	cfg := sd.NewRegistryCfg().WithNamespace("/TestLease").WithTTL(3)
+	registry, cli := setupRegistry(t, cfg)
 	ctx := context.Background()
 
 	// 注册测试服务
@@ -116,10 +115,10 @@ func TestLeaseRenewal(t *testing.T) {
 		Id:   "node-1",
 		Addr: []string{"10.0.1.10:8080"},
 	}
-	if err := registry.Reg(ctx, svc); err != nil {
+	if err := registry.Reg(svc); err != nil {
 		t.Fatalf("注册失败: %v", err)
 	}
-	svcKey := registry.SvcKey(namespace, "inventory", "node-1")
+	svcKey := cfg.ServiceInstEtcdKey("inventory", "node-1")
 
 	// 获取初始租约信息
 	initialResp, err := cli.Get(ctx, svcKey)
@@ -163,7 +162,7 @@ func TestConcurrentRegistration(t *testing.T) {
 				Id:   fmt.Sprintf("worker-%d", id),
 				Addr: []string{fmt.Sprintf("10.0.2.%d:8080", id)},
 			}
-			if err := registry.Reg(ctx, svc); err != nil {
+			if err := registry.Reg(svc); err != nil {
 				t.Errorf("注册失败: worker-%d: %v", id, err)
 			}
 		}(i)
