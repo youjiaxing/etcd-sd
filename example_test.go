@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func ExampleRegistry() {
+func Example_registry() {
 	// 初始化etcd客户端
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   []string{"localhost:2379"},
