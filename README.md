@@ -10,4 +10,7 @@
 ✅ 多命名空间支持  
 ✅ 异常重试机制
 
-## 安装
+## 快速使用
+```go
+go get github.com/youjiaxing/etcd-sd@latest
+```
