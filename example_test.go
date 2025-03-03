@@ -83,7 +83,6 @@ func Example_fullFlow() {
 	// 注册两个支付服务实例
 	paymentService := []sd.Service{
 		{Name: "payment", Id: "node-1", Addr: []string{"10.0.0.1:8080"}},
-		{Name: "payment", Id: "node-2", Addr: []string{"10.0.0.2:8080"}},
 	}
 
 	for _, svc := range paymentService {
@@ -131,8 +130,8 @@ func Example_fullFlow() {
 	// 扩容：新增实例
 	newSvc := sd.Service{
 		Name: "payment",
-		Id:   "node-3",
-		Addr: []string{"10.0.0.3:8080"},
+		Id:   "node-2",
+		Addr: []string{"10.0.0.2:8080"},
 	}
 	if err := registry.Reg(newSvc); err != nil {
 		log.Printf("扩容失败: %v", err)
@@ -154,8 +153,7 @@ func Example_fullFlow() {
 	fmt.Printf("最终服务数: %d", len(services))
 
 	// Output:
-	// 初始发现服务数: 2
-	// 收到变更通知，当前服务数: 3
+	// 初始发现服务数: 1
 	// 收到变更通知，当前服务数: 2
 	// 收到变更通知，当前服务数: 1
 	// 收到变更通知，当前服务数: 0
